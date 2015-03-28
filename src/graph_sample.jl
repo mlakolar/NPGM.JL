@@ -29,60 +29,75 @@
 #
 
 
-function graph_sample!(X::Matrix{Float64},
-                       n::Int64, edges::Matrix{Float64}, gibbs_groups::Vector{Int64},
-                       phi_node_hdl::Matrix{Any}, phi_edge_hdl::Matrix{Any}, mh_sampler_hdl, mh_ratio_hdl,
-                       beta_node::Matrix{Float64}, beta_edge::Matrix{Float64};
+function graph_sample!(X::Array{Float64,2},
+                       n::Int64, edges::Array{Int64,2}, gibbs_groups::Array{Int64, 1},
+                       phi_node_hdl::Function, phi_edge_hdl::Function, mh_sampler_hdl::Function, mh_ratio_hdl::Function,
+                       beta_node::Array{Float64,2}, beta_edge::Array{Float64,2};
                        burnin::Int64=100, gap::Int64=100)
+
+  numAccept = 0
+  numReject = 0
 
   G = maximum(gibbs_groups)
   groups = cell(G)
   for g=1:G
-    groups[g] = find(gibbs_groups == g)
+    groups[g] = find(gibbs_groups .== g)
   end
-  [p, K] = size(beta_node)
-  [m, L] = size(beta_edge)
+
+  p, K = size(beta_node)
+  m, L = size(beta_edge)
   fill!(X, 0.)
   x = zeros(Float64, p)
   xnew = zeros(Float64, p)
 
-  edge_to_node = zeros(Float64, m, p)
-  for mm=1:m
-    edge_to_node[mm,edges[mm,1]]=1
-    edge_to_node[mm,edges[mm,2]]=1
+  node_to_edge = Array(Vector{Int64}, p)
+  for i=1:p
+    node_to_edge[i] = Array(Int64, 0)
   end
-  edge_to_node = sparse(edge_to_node)
+  for mm=1:m
+    push!(node_to_edge[edges[mm,1]], mm)
+    push!(node_to_edge[edges[mm,2]], mm)
+  end
 
+  numSampled = 0
   for iter=1:(burnin+gap*(n-1))
     #
     # Gibbs sampler cycles through groups
     # within each group, run Metropolis-Hastings in parallel across the nodes
     for g=1:G
       group=groups[g]
-      edge_to_gp = edge_to_node[:,group]
       copy!(xnew, x)
       for elem=group
         xnew[elem] = mh_sampler_hdl(x[elem])
       end
-      #### change from here
-      mh_ratios=mh_ratio_hdl(x(group),xnew(group));
-        logprob_change=...
-          diag(beta_node(group,:)*...
-           (phi_node_hdl(xnew(group))-phi_node_hdl(x(group)))');
-        if(m>0)
-           logprob_change=logprob_change+ ...
-             edge_to_gp'*diag(beta_edge*...
-               (phi_edge_hdl(xnew(edges))-phi_edge_hdl(x(edges)))');
+      for ii=1:length(group)
+        mh_ratios = mh_ratio_hdl(x[group[ii]], xnew[group[ii]])
+        logprob_change = 0.
+        for k=1:K
+          logprob_change += beta_node[group[ii],k] * (phi_node_hdl(xnew[group[ii]], k) - phi_node_hdl(x[group[ii]], k))
         end
-        accept_probs=exp(logprob_change).*mh_ratios;
-        which_accept=find(unifrnd(0,1,length(group),1)<=accept_probs);
-        x(group(which_accept))=xnew(group(which_accept));
+        for mm=node_to_edge[group[ii]]
+          for l=1:L
+            logprob_change += beta_edge[mm,l] *
+              (phi_edge_hdl(xnew[edges[mm,1]], xnew[edges[mm,2]], l) - phi_edge_hdl(x[edges[mm,1]], x[edges[mm,2]], l))
+          end
+        end
+        accept_prob = exp(logprob_change) * mh_ratios
+        if rand() <= accept_prob
+          x[group[ii]] = xnew[group[ii]]
+          numAccept += 1
+        else
+          numReject += 1
+        end
+      end
     end
-%%
-% store observation according to burnin / gap
-    if(iter>=burnin && mod(iter-burnin,gap)==0)
-        X((iter-burnin)/gap+1,:)=x';
-    end
-end
 
+    # store observation according to burnin / gap
+    if (iter >= burnin) && mod(iter-burnin,gap) == 0
+      numSampled += 1
+      X[numSampled, :] = x
+    end
+  end
+
+  (numAccept, numReject)
 end

@@ -24,7 +24,7 @@ function gm_node_der_f(x::Float64, k::Int64)
     k == 1 ? - x : 0.
 end
 
-function gm_edge_der_2_f(x::Float64, y::Float64, k::Int64)
+function gm_edge_der_2_f(x::Float64, y::Float64, k::Int64, whichArgument::Int64)
     return 0.
 end
 

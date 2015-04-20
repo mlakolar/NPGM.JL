@@ -141,19 +141,45 @@ function getDD(X::Array{Float64, 2}, K::Int64, L::Int64,
     getD!(partial_derivatives, X, i, K, L, phi_node_d, phi_edge_d)
 
     # diagonal elements
-    for ci=1:p*K
-      V[ci] += partial_derivatives[ci, 1]^2
-    end
-    for ci=(p*K+1):numColumns
-      V[ci] += partial_derivatives[ci, 1]^2 + partial_derivatives[ci, 2]^2
-    end
+    ci = 1
+    for a=1:p
+      for k1=1:K
+        V[ci] += partial_derivatives[(a-1)*K+k1, 1]^2
+        ci += 1
+        for k2=k1+1:K
+          tmp = partial_derivatives[(a-1)*K+k1, 1] * partial_derivatives[(a-1)*K+k2, 1]
+          V[ci  ] += tmp
+          V[ci+1] += tmp
 
+          ci += 2
+        end
+      end
+    end
+    indEdge = 0
+    for a=1:p
+      for b=a+1:p
+        indEdge += 1
+        for l1=1:L
+          _ri = p*K + (indEdge-1)*L+l1
+          V[ci] += partial_derivatives[_ri, 1]^2 + partial_derivatives[_ri, 2]^2
+          ci += 1
+          for l2=l1+1:L
+            _ri = p*K + (indEdge-1)*L+l1
+            _ci = p*K + (indEdge-1)*L+l2
+            tmp = partial_derivatives[_ri, 1]*partial_derivatives[_ci, 1] + partial_derivatives[_ri, 2]*partial_derivatives[_ci, 2]
+            V[ci    ] += tmp
+            V[ci + 1] += tmp
+
+            ci += 2
+          end
+        end
+      end
+    end
     # off-diagonal elements
     # first computing the part of D'D corresponding to node x edge
     # iterate over edges and record two non-zero elements per edge
     # also record elements
     indEdge = 0
-    ci = numColumns + 1
     for a=1:p
       for b=a+1:p
         indEdge += 1
@@ -227,15 +253,56 @@ function getDD(X::Array{Float64, 2}, K::Int64, L::Int64,
 
   end
 
+
+
+
   # construct indices for DD
   # diagonal elements
-  for ci=1:numColumns
-    I[ci] = ci
-    J[ci] = ci
+  ci = 1
+  for a=1:p
+    for k1=1:K
+      I[ci] = (a-1)*K+k1
+      J[ci] = (a-1)*K+k1
+      ci += 1
+      for k2=k1+1:K
+        _ri = (a-1)*K+k1
+        _ci = (a-1)*K+k2
+
+        I[ci]   = _ri
+        J[ci]   = _ci
+        I[ci+1] = _ci
+        J[ci+1] = _ri
+
+        ci += 2
+      end
+    end
   end
 
   indEdge = 0
-  ci = numColumns + 1
+  for a=1:p
+    for b=a+1:p
+      indEdge += 1
+      for l1=1:L
+        I[ci] = p*K + (indEdge-1)*L+l1
+        J[ci] = p*K + (indEdge-1)*L+l1
+
+        ci += 1
+        for l2=l1+1:L
+          _ri = p*K + (indEdge-1)*L+l1
+          _ci = p*K + (indEdge-1)*L+l2
+
+          I[ci]   = _ri
+          J[ci]   = _ci
+          I[ci+1] = _ci
+          J[ci+1] = _ri
+
+          ci += 2
+        end
+      end
+    end
+  end
+
+  indEdge = 0
   for a=1:p
     for b=a+1:p
       indEdge += 1
@@ -325,7 +392,7 @@ end
 
 
 
-# fills matrix of size 2 x (p*K + (p-1) * L)
+# fills matrix of size 2 x (K + (p-1) * L)
 # with elements of D(x_i)
 # where
 #     K is the number of basis per node
@@ -367,19 +434,76 @@ function getNeighborhoodD!(
 end
 
 
+# This function returns D(x_i) as a sparse matrix of size
+# p x (K + (p-1) * L)
+# note that the function is implemented only for pairwise graphical models
+function getNeighborhoodD(
+    X::Array{Float64, 2}, rowInd::Int64, nodeInd::Int64, K::Int64, L::Int64,
+    phi_node_d::Function, phi_edge_d::Function)
+
+  n, p = size(X)
+  # will be used to create a sparse matrix at the end
+  rI = Array(Int64, 0)
+  cI = Array(Int64, 0)
+  V = Array(Float64, 0)
+
+  # process node elements
+  for k=1:K
+    _v = phi_node_d(X[rowInd, nodeInd], k)
+
+    push!(rI, nodeInd)
+    push!(cI, k)
+    push!(V, _v)
+  end
+
+  # process edges
+  indEdge = 0
+  for b=1:p
+    if b == nodeInd
+      continue
+    end
+    indEdge += 1
+    # derivative with respect to first argument
+    _ri = nodeInd
+    for l=1:L
+      _ci = K + (indEdge-1)*L + l
+      _v = phi_edge_d(X[rowInd, nodeInd], X[rowInd, b], l, 1)
+
+      push!(rI, _ri)
+      push!(cI, _ci)
+      push!(V, _v)
+    end
+
+    # derivative with respect to second argument
+    _ri = b
+    for l=1:L
+      _ci = K + (indEdge-1)*L + l
+      _v = phi_edge_d(X[rowInd, nodeInd], X[rowInd, b], l, 2)
+
+      push!(rI, _ri)
+      push!(cI, _ci)
+      push!(V, _v)
+    end
+
+  end
+
+  sparse(rI, cI, V, p, K+(p-1)*L)
+end
+
+
+
 # constructs matrix DD = sum_i D(x_i)'D(x_i)
 function getNeighborhoodDD(X::Array{Float64, 2}, nodeInd::Int64, K::Int64, L::Int64,
                phi_node_d::Function, phi_edge_d::Function)
 
   n, p = size(X)
-  numColumns = int(K + (p-1) * L)
+  numColumns = K + (p-1) * L
   partial_derivatives = zeros(Float64, numColumns, 2)
 
   # number of non-zero elements in D'D
   numNZ = K * K +
-    int(L * L * p * (p-1) / 2) +
     2 * (p-1) * K * L +
-    L * L * (p - 1) * (p - 2)
+    L * L * (p - 1) * (p - 1)
   V = zeros(Float64, numNZ)
   I = zeros(Int64, numNZ)
   J = zeros(Int64, numNZ)
@@ -389,11 +513,38 @@ function getNeighborhoodDD(X::Array{Float64, 2}, nodeInd::Int64, K::Int64, L::In
     getNeighborhoodD!(partial_derivatives, X, i, nodeInd, K, L, phi_node_d, phi_edge_d)
 
     # diagonal elements
-    for ci=1:K
-      V[ci] += partial_derivatives[ci, 1]^2
+    ci = 1
+    for k1=1:K
+      V[ci] += partial_derivatives[k1, 1]^2
+      ci += 1
+      for k2=k1+1:K
+        tmp = partial_derivatives[k1, 1] * partial_derivatives[k2, 1]
+        V[ci  ] += tmp
+        V[ci+1] += tmp
+
+        ci += 2
+      end
     end
-    for ci=(K+1):numColumns
-      V[ci] += partial_derivatives[ci, 1]^2 + partial_derivatives[ci, 2]^2
+    indEdge = 0
+    for b=1:p
+      if b == nodeInd
+        continue
+      end
+      indEdge += 1
+      for l1=1:L
+        _ri = K + (indEdge-1)*L + l1
+        V[ci] += partial_derivatives[_ri, 1]^2 + partial_derivatives[_ri, 2]^2
+        ci += 1
+        for l2=l1+1:L
+          _ri = K + (indEdge-1)*L + l1
+          _ci = K + (indEdge-1)*L + l2
+          tmp = partial_derivatives[_ri, 1]*partial_derivatives[_ci, 1] + partial_derivatives[_ri, 2]*partial_derivatives[_ci, 2]
+          V[ci    ] += tmp
+          V[ci + 1] += tmp
+
+          ci += 2
+        end
+      end
     end
 
     # off-diagonal elements
@@ -401,7 +552,6 @@ function getNeighborhoodDD(X::Array{Float64, 2}, nodeInd::Int64, K::Int64, L::In
     # iterate over edges and record two non-zero elements per edge
     # also record elements
     indEdge = 0
-    ci = numColumns + 1
     for b=1:p
       if nodeInd == b
         continue
@@ -429,42 +579,21 @@ function getNeighborhoodDD(X::Array{Float64, 2}, nodeInd::Int64, K::Int64, L::In
       indEdge += 1
       for l1=1:L
         for l2=1:L
-          #### update from here
-          # edges that have a in common
-          # edge (a,b), component l1 x edge (a, c), component l2
+
+          indEdge2 = indEdge
           for c=b+1:p
-            indEdge2 = getEdgeIndex(a,c,p)
-              _ri = p*K + (indEdge-1)*L + l1
-              _ci = p*K + (indEdge2-1)*L + l2
-              tmp = partial_derivatives[_ci, 1] * partial_derivatives[_ri, 1]
-              V[ci]   += tmp
-              V[ci+1] += tmp
-              ci += 2
+            if nodeInd == c
+              continue
             end
-
-            # edges that have b in common
-            # edge (a,b), component l1 x edge (c, b), component l2
-            for c=a+1:b-1
-              indEdge2 = getEdgeIndex(c,b,p)
-              _ri = p*K + (indEdge-1)*L + l1
-              _ci = p*K + (indEdge2-1)*L + l2
-              tmp = partial_derivatives[_ci, 2] * partial_derivatives[_ri, 2]
-              V[ci]   += tmp
-              V[ci+1] += tmp
-              ci += 2
-            end
-            # edge (a,b), component l1 x edge (b, c), component l2
-            for c=b+1:p
-              indEdge2 = getEdgeIndex(b,c,p)
-              _ri = p*K + (indEdge-1)*L + l1
-              _ci = p*K + (indEdge2-1)*L + l2
-              tmp = partial_derivatives[_ci, 1] * partial_derivatives[_ri, 2]
-              V[ci]   += tmp
-              V[ci+1] += tmp
-              ci += 2
-            end
-
+            indEdge2 += 1
+            _ri = K + (indEdge-1)*L + l1
+            _ci = K + (indEdge2-1)*L + l2
+            tmp = partial_derivatives[_ci, 1] * partial_derivatives[_ri, 1]
+            V[ci]   += tmp
+            V[ci+1] += tmp
+            ci += 2
           end
+
         end
       end
     end
@@ -473,96 +602,98 @@ function getNeighborhoodDD(X::Array{Float64, 2}, nodeInd::Int64, K::Int64, L::In
 
   # construct indices for DD
   # diagonal elements
-  for ci=1:numColumns
-    I[ci] = ci
-    J[ci] = ci
+  ci = 1
+  for k1=1:K
+    I[ci] = k1
+    J[ci] = k1
+    ci += 1
+    for k2=k1+1:K
+      I[ci  ] = k1
+      J[ci  ] = k2
+      I[ci+1] = k2
+      J[ci+1] = k1
+
+      ci += 2
+    end
   end
-
   indEdge = 0
-  ci = numColumns + 1
-  for a=1:p
-    for b=a+1:p
-      indEdge += 1
-      for l=1:L
-        for k=1:K
-          # node a, component k x edge (a,b) component l
-          _ri = (a-1)*K + k
-          _ci = p*K + (indEdge-1)*L + l
+  for b=1:p
+    if b == nodeInd
+      continue
+    end
+    indEdge += 1
+    for l1=1:L
+      _ri = K + (indEdge-1)*L+l1
+      I[ci] = _ri
+      J[ci] = _ri
 
-          I[ci]   = _ri
-          J[ci]   = _ci
-          I[ci+1] = _ci
-          J[ci+1] = _ri
+      ci += 1
+      for l2=l1+1:L
+        _ri = K + (indEdge-1)*L+l1
+        _ci = K + (indEdge-1)*L+l2
 
-          # node b, component k x edge (a,b) component l
-          _ri = (b-1)*K + k
-          _ci = p*K + (indEdge-1)*L + l
+        I[ci  ] = _ri
+        J[ci  ] = _ci
+        I[ci+1] = _ci
+        J[ci+1] = _ri
 
-          I[ci+2] = _ri
-          J[ci+2] = _ci
-          I[ci+3] = _ci
-          J[ci+3] = _ri
-
-          ci += 4
-        end
+        ci += 2
       end
     end
   end
 
   indEdge = 0
-  for a=1:p
-    for b=a+1:p
-      indEdge += 1
-      for l1=1:L
-        for l2=1:L
+  for b=1:p
+    if nodeInd == b
+      continue
+    end
+    indEdge += 1
+    for l=1:L
+      for k=1:K
+        # node a, component k x edge (a,b) component l
+        _ri = k
+        _ci = K + (indEdge-1)*L + l
 
-          # edges that have a in common
-          # edge (a,b), component l1 x edge (a, c), component l2
-          for c=b+1:p
-            indEdge2 = getEdgeIndex(a,c,p)
-            _ri = p*K + (indEdge-1)*L + l1
-            _ci = p*K + (indEdge2-1)*L + l2
+        I[ci]    =  _ri
+        J[ci]    =  _ci
+        I[ci+1]  =  _ci
+        J[ci+1]  =  _ri
 
-            I[ci]   = _ri
-            J[ci]   = _ci
-            I[ci+1] = _ci
-            J[ci+1] = _ri
-
-            ci += 2
-          end
-
-          # edges that have b in common
-          # edge (a,b), component l1 x edge (c, b), component l2
-          for c=a+1:b-1
-            indEdge2 = getEdgeIndex(c,b,p)
-            _ri = p*K + (indEdge-1)*L + l1
-            _ci = p*K + (indEdge2-1)*L + l2
-
-            I[ci]   = _ri
-            J[ci]   = _ci
-            I[ci+1] = _ci
-            J[ci+1] = _ri
-
-            ci += 2
-          end
-          # edge (a,b), component l1 x edge (b, c), component l2
-          for c=b+1:p
-            indEdge2 = getEdgeIndex(b,c,p)
-            _ri = p*K + (indEdge-1)*L + l1
-            _ci = p*K + (indEdge2-1)*L + l2
-
-            I[ci]   = _ri
-            J[ci]   = _ci
-            I[ci+1] = _ci
-            J[ci+1] = _ri
-
-            ci += 2
-          end
-
-        end
+        ci += 2
       end
     end
   end
+
+  indEdge = 0
+  for b=1:p
+    if nodeInd == b
+      continue
+    end
+    indEdge += 1
+    for l1=1:L
+      for l2=1:L
+
+        indEdge2 = indEdge
+        for c=b+1:p
+          if nodeInd == c
+            continue
+          end
+          indEdge2 += 1
+          _ri = K + (indEdge-1)*L + l1
+          _ci = K + (indEdge2-1)*L + l2
+
+          I[ci]    =  _ri
+          J[ci]    =  _ci
+          I[ci+1]  =  _ci
+          J[ci+1]  =  _ri
+
+          ci += 2
+        end
+
+      end
+    end
+  end
+
 
   sparse(I, J, V, numColumns, numColumns)
 end
@@ -614,7 +745,7 @@ function getNeighborhoodE(
     phi_node_d_2::Function, phi_edge_d_2::Function)
 
   n, p = size(X)
-  E = zeros(Float64, int(p*K+(p-1)*L))
+  E = zeros(Float64, K+(p-1)*L)
   for rowInd=1:n
     # process node
     for k=1:K

@@ -1,6 +1,34 @@
+# two functions per node
+# x^2 and x
 function gm_node_f(x::Float64, k::Int64)
-    k == 1 ? - x^2 / 2. : 0.
+  if k == 1
+    return - x^2 / 2.
+  elseif k == 2
+    return x
+  else
+    return 0.
+  end
 end
+
+function gm_node_der_f(x::Float64, k::Int64)
+  if k == 1
+    return -x
+  elseif k == 2
+    return 1.
+  else
+    return 0.
+  end
+end
+
+function gm_node_der_2_f(x::Float64, k::Int64)
+  if k == 1
+    return -1.
+  else
+    return 0.
+  end
+end
+
+
 
 function gm_edge_f(x::Float64, y::Float64, k::Int64)
     k == 1 ? - x * y : 0.
@@ -20,16 +48,8 @@ function gm_edge_der_f(x::Float64, y::Float64, k::Int64, whichArgument::Int64)
     end
 end
 
-function gm_node_der_f(x::Float64, k::Int64)
-    k == 1 ? - x : 0.
-end
-
 function gm_edge_der_2_f(x::Float64, y::Float64, k::Int64, whichArgument::Int64)
     return 0.
-end
-
-function gm_node_der_2_f(x::Float64, k::Int64)
-    k == 1 ? -1. : 0.
 end
 
 # extract the precision matrix from solution obtained by score matching

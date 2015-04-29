@@ -69,3 +69,4 @@ function getPrecision(out::Array{Float64, 2}, p::Int64, input::Array{Float64, 1}
         end
     end
 end
+

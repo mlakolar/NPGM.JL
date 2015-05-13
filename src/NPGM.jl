@@ -1,10 +1,12 @@
 module NPGM
 
+import BSpline
 
 export
   graph_sample!,
   getE, getD!, getD, getDD,
   getNeighborhoodD,getNeighborhoodD!,
+  getNeighborhoodE,getNeighborhoodE!,
   gm_node_f, gm_edge_f, gm_edge_der_f, gm_node_der_f, gm_edge_der_2_f, gm_node_der_2_f,
   getPrecision
 

@@ -1,5 +1,7 @@
 module NPGM
 
+using Compat
+
 import BSpline
 
 export
@@ -11,6 +13,7 @@ export
   getPrecision
 
 
+include("low_rank.jl")
 include("graph_sample.jl")
 include("gaussian_function_handlers.jl")
 include("score_matching.jl")

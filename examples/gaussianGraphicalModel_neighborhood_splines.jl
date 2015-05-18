@@ -1,11 +1,11 @@
-#reload("NPGM")
+# reload("NPGM")
 import NPGM
 import NPGM.BSplineFunctions
-import PyPlot
+# import PyPlot
 
 # splines version
 n = 500
-p = 10
+p = 100
 rho = 0.8
 Sigma = zeros(Float64, p, p)
 for a=1:p
@@ -34,7 +34,7 @@ numLambda = 50
 ePrecision = zeros(numLambda)
 eRecall = zeros(numLambda)
 
-numRep = 10
+numRep = 2
 for rep=1:numRep
   X = randn(n, p) * sqSigma
 
@@ -46,7 +46,7 @@ for rep=1:numRep
   bNeighborhood = Array(Bool, p)
   for nodeInd=1:p
     @printf("Rep ==> %d Node ==> %d\n", rep, nodeInd)
-    eNeigh = NPGM.estimate_neighborhood(X, nodeInd, nodeBasis, edgeBasis, λarr)
+    @time eNeigh = NPGM.estimate_neighborhood(X, nodeInd, nodeBasis, edgeBasis, λarr)
     for i=1:numLambda
       θv = slice(eNeigh, i, :)
       NPGM.getNeighborhood(bNeighborhood, θv, nodeInd, p, K, L)
@@ -65,16 +65,16 @@ end
 scale!(ePrecision, 1./numRep)
 scale!(eRecall, 1./numRep)
 
-my_dpi = 96
-xsize=500*4
-ysize=375*5
-fig = PyPlot.figure("pyplot_customtime",figsize=(2*xsize/my_dpi, ysize/my_dpi), dpi=my_dpi) # Create a figure and save the handle
-ax1 = PyPlot.subplot(121)
-PyPlot.plot(λarr, ePrecision, linewidth=4)
-PyPlot.title("Precision")
-ax1[:set_ylim]([0,1])
+# my_dpi = 96
+# xsize=500*4
+# ysize=375*5
+# fig = PyPlot.figure("pyplot_customtime",figsize=(2*xsize/my_dpi, ysize/my_dpi), dpi=my_dpi) # Create a figure and save the handle
+# ax1 = PyPlot.subplot(121)
+# PyPlot.plot(λarr, ePrecision, linewidth=4)
+# PyPlot.title("Precision")
+# ax1[:set_ylim]([0,1])
 
-ax2 = PyPlot.subplot(122)
-PyPlot.plot(λarr, eRecall, linewidth=4)
-PyPlot.title("Recall")
-ax2[:set_ylim]([0,1])
+# ax2 = PyPlot.subplot(122)
+# PyPlot.plot(λarr, eRecall, linewidth=4)
+# PyPlot.title("Recall")
+# ax2[:set_ylim]([0,1])

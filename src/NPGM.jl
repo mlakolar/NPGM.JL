@@ -20,6 +20,7 @@ export
   estimate_neighborhood,
   getNeighborhood,
   precision, recall,
+  LowRankEigen,
 
   # sampler
   graph_sample!
@@ -52,8 +53,8 @@ include("neighborhoodMatrices.jl")
 include("gaussianBasis.jl")
 include("bsplineBasis.jl")
 include("utils.jl")
-
 include("low_rank.jl")
+
 include("graph_sample.jl")
 
 

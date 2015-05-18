@@ -1,4 +1,4 @@
-#reload("NPGM")
+reload("NPGM")
 import NPGM
 import NPGM.GaussianFunctions
 import PyPlot

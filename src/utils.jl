@@ -5,7 +5,8 @@ function prepareNeighborhoodData{T<:FloatingPoint}(
     X::Matrix{T},
     nodeInd::Int64,
     nodeBasis::NodeBasis,
-    edgeBasis::EdgeBasis
+    edgeBasis::EdgeBasis;
+    min_eigval::T=1e-5
     )
   K = nodeBasis.numBasis
   L = edgeBasis.numBasis
@@ -15,17 +16,25 @@ function prepareNeighborhoodData{T<:FloatingPoint}(
 
   n, p = size(X)
 
-  groups = Array(UnitRange{Int64}, p)
-  groups[1] = 1:K
+  groups = Array(UnitRange{Int64}, p-1)
   for t=1:p-1
-    groups[t+1] = (K + (t-1)*L+1):(K + t*L)
+    groups[t] = (t-1)*L+1:t*L
   end
 
-  A = D'D / n
-  b = vec( sum(E, 1) / n )
+  i1 = 1:K
+  i2 = K+1:size(D, 2)
+  D1 = sub(D, :, i1)
+  D2 = sub(D, :, i2)
+  A11 = LowRankEigen(Symmetric(D1'D1/n); min_eigval=min_eigval)
+  A12 = D1'D2 / n
+  A22 = D2'D2 / n - A12' * (A11 \ A12)
+  E1 = sub(E, :, i1)
+  E2 = sub(E, :, i2)
+  b1 = vec( sum(E1, 1) / n )
+  b2 = vec( sum(E2, 1) / n ) - A12' * (A11 \ b1)
 
   #
-  zeros(K+(p-1)*L), A, b, groups
+  zeros(K+(p-1)*L), A11, A12, A22, b1, b2, groups
 end
 
 function estimate_neighborhood{T<:FloatingPoint}(
@@ -37,15 +46,28 @@ function estimate_neighborhood{T<:FloatingPoint}(
     options::ProximalOPT.ProximalOptions=ProximalOPT.ProximalOptions()
     )
   n, p = size(X)
+  K = nodeBasis.numBasis
+  L = edgeBasis.numBasis
+
   numLambda = length(λarr)
-  θ, A, b, groups = prepareNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis)
+  θ, A11, A12, A22, b1, b2, groups = prepareNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis)
+  #
+  θ1 = sub(θ, 1:K)
+  θ2 = sub(θ, K+1:length(θ))
+  #
   θarr = Array(Float64, (numLambda, length(θ)))
   numGroups = length(groups)
-  f = ProximalOPT.QuadraticFunction(A, b)
+  f = ProximalOPT.QuadraticFunction(A22, b2)
   for indLambda=1:numLambda
-    λ = vcat(0., λarr[indLambda] * ones(numGroups-1))
-    g = ProximalOPT.ProxL1L2(λ, groups)
-    ProximalOPT.solve!(ProximalOPT.AccProxGradDescent(), θ, f, g; options=options)
+    g = ProximalOPT.ProxL1L2(λarr[indLambda], groups)
+    ProximalOPT.solve!(ProximalOPT.AccProxGradDescent(), θ2, f, g; options=options)
+    # compute     θ1 = -(A11 \ (A12*θ2 + b1))
+    A_mul_B!(θ1, A12, θ2)
+    @inbounds for i in eachindex(θ1)
+      θ1[i] += b1[i]
+      θ1[i] = -θ1[i]
+    end
+    A_ldiv_B!(A11, θ1)
     θarr[indLambda, :] = θ
   end
  θarr

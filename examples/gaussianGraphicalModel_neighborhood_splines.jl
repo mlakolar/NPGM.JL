@@ -1,11 +1,11 @@
 #reload("NPGM")
 import NPGM
-import NPGM.GaussianFunctions
+import NPGM.BSplineFunctions
 import PyPlot
 
-# parametric version
+# splines version
 n = 500
-p = 100
+p = 10
 rho = 0.8
 Sigma = zeros(Float64, p, p)
 for a=1:p
@@ -24,13 +24,13 @@ for r=1:p
   end
 end
 
-nodeBasis = NPGM.GaussianFunctions.GaussianNodeBasis(0.)
+nodeBasis = NPGM.BSplineFunctions.BSplineNodeBasis(4, -4., 4., 4)
 K = nodeBasis.numBasis
-edgeBasis = NPGM.GaussianFunctions.GaussianEdgeBasis(0.)
+edgeBasis = NPGM.BSplineFunctions.BSplineEdgeBasis(4, (-4., -4.), (4., 4.), (2, 2))
 L = edgeBasis.numBasis
 
-numLambda = 30
-λarr = 10.^linspace(log10(1), log10(0.1), numLambda)
+numLambda = 50
+λarr = 10.^linspace(log10(0.01), log10(0.001), numLambda)
 ePrecision = zeros(numLambda)
 eRecall = zeros(numLambda)
 

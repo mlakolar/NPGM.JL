@@ -5,7 +5,7 @@ import NPGM.BSplineFunctions
 
 # splines version
 n = 500
-p = 100
+p = 20
 rho = 0.8
 Sigma = zeros(Float64, p, p)
 for a=1:p
@@ -34,7 +34,7 @@ numLambda = 50
 ePrecision = zeros(numLambda)
 eRecall = zeros(numLambda)
 
-numRep = 2
+numRep = 1
 for rep=1:numRep
   X = randn(n, p) * sqSigma
 
@@ -53,17 +53,16 @@ for rep=1:numRep
       eGraphs[i][nodeInd, :] = bNeighborhood
     end
   end
-
   for i=1:numLambda
     ePrecision[i] += NPGM.precision(tGraph, eGraphs[i])
     eRecall[i] += NPGM.recall(tGraph, eGraphs[i])
   end
-  @show ePrecision
-  @show eRecall
 end
 
 scale!(ePrecision, 1./numRep)
 scale!(eRecall, 1./numRep)
+
+
 
 # my_dpi = 96
 # xsize=500*4

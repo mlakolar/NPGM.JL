@@ -16,7 +16,7 @@ export
 
   # utils
   condDensity,
-  prepareNeighborhoodData,
+  prepareLowRankNeighborhoodData,
   estimate_neighborhood,
   getNeighborhood,
   precision, recall,

@@ -1,7 +1,7 @@
 # takes data as input and prepares everything for optimization
 # X data matrix
 # node for which we want to f
-function prepareNeighborhoodData{T<:FloatingPoint}(
+function prepareLowRankNeighborhoodData{T<:FloatingPoint}(
     X::Matrix{T},
     nodeInd::Int64,
     nodeBasis::NodeBasis,
@@ -15,7 +15,6 @@ function prepareNeighborhoodData{T<:FloatingPoint}(
   E = getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
 
   n, p = size(X)
-
   groups = Array(UnitRange{Int64}, p-1)
   for t=1:p-1
     groups[t] = (t-1)*L+1:t*L
@@ -23,15 +22,19 @@ function prepareNeighborhoodData{T<:FloatingPoint}(
 
   i1 = 1:K
   i2 = K+1:size(D, 2)
-  D1 = sub(D, :, i1)
-  D2 = sub(D, :, i2)
-  A11 = LowRankEigen(Symmetric(D1'D1/n); min_eigval=min_eigval)
-  A12 = D1'D2 / n
-  A22 = D2'D2 / n - A12' * (A11 \ A12)
+  A = D'D
+  scale!(A, 1./n)
+  A11 = LowRankEigen(sub(A, i1, i1), true; min_eigval=min_eigval)
+  A12 = A[i1, i2]
+  # tmp = A12' (A11 \ A12)
+  tmp = zeros(length(A11.values),length(i2))
+  At_mul_B!(tmp, A11.vectors, A12)
+#   scale!(A11.values_inv, tmp)
+  A22 = LowRankEigen(Symmetric(sub(A, i2, i2) - tmp' * Diagonal(A11.values_inv) * tmp), true; min_eigval=min_eigval)
   E1 = sub(E, :, i1)
   E2 = sub(E, :, i2)
   b1 = vec( sum(E1, 1) / n )
-  b2 = vec( sum(E2, 1) / n ) - A12' * (A11 \ b1)
+  b2 = vec( sum(E2, 1) / n ) - tmp' * (Diagonal(A11.values_inv) * (A11.vectors' * b1))
 
   #
   zeros(K+(p-1)*L), A11, A12, A22, b1, b2, groups
@@ -43,14 +46,15 @@ function estimate_neighborhood{T<:FloatingPoint}(
     nodeBasis::NodeBasis,
     edgeBasis::EdgeBasis,
     λarr::Vector{T};
-    options::ProximalOPT.ProximalOptions=ProximalOPT.ProximalOptions()
+    options::ProximalOPT.ProximalOptions=ProximalOPT.ProximalOptions(),
+    min_eigval::T=1e-5
     )
   n, p = size(X)
   K = nodeBasis.numBasis
   L = edgeBasis.numBasis
 
   numLambda = length(λarr)
-  θ, A11, A12, A22, b1, b2, groups = prepareNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis)
+  θ, A11, A12, A22, b1, b2, groups = prepareLowRankNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis; min_eigval=min_eigval)
   #
   θ1 = sub(θ, 1:K)
   θ2 = sub(θ, K+1:length(θ))
@@ -114,7 +118,9 @@ function condDensity{T<:FloatingPoint}(
     nodeBasis::NodeBasis,
     edgeBasis::EdgeBasis,
     indNode::Int64,
-    condX::Vector{T}
+    condX::Vector{T},
+    xmin::T,
+    xmax::T
     )
 
   K = nodeBasis.numBasis
@@ -142,7 +148,7 @@ function condDensity{T<:FloatingPoint}(
     end
     fx[i] = exp(tmp)
   end
-  scale!(pX, one(T) / _trapz(pX, ed.xmin, ed.xmax))
+  scale!(fx, one(T) / _trapz(fx, xmin, xmax))
   x, fx
 end
 

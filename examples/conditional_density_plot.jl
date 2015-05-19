@@ -1,11 +1,12 @@
 reload("NPGM")
-import NPGM
-import NPGM.BSplineFunctions
 import PyPlot
 
+import NPGM
+import NPGM.BSplineFunctions
+
 # splines version
-n = 50
-p = 10
+n = 200
+p = 100
 rho = 0.8
 Sigma = zeros(Float64, p, p)
 for a=1:p
@@ -33,8 +34,50 @@ numLambda = 50
 λarr = 10.^linspace(log10(0.01), log10(0.005), numLambda)
 
 X = randn(n, p) * sqSigma
-
 nodeInd = 2
+
+#################
+#   min_eigval=1e-5
+#   D = NPGM.getNeighborhoodD(X, nodeInd, nodeBasis, edgeBasis)
+#   E = NPGM.getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
+
+#   n, p = size(X)
+#   groups = Array(UnitRange{Int64}, p-1)
+#   for t=1:p-1
+#     groups[t] = (t-1)*L+1:t*L
+#   end
+
+#   # compute A11, A12, A22
+#   i1 = 1:K
+#   i2 = K+1:size(D, 2)
+#   svdD = svdfact(D)
+#   S = svdD.S
+#   m = length(S)
+#   k = 0
+#   @inbounds while k < m
+#     k += 1
+#     v = S[k].^2. / n
+#     if v < min_eigval
+#       k -= 1
+#       break
+#     end
+#     S[k] = v
+#   end
+#   resize!(S, k)
+#   U1 = svdD[:Vt][1:k, i1]'
+#   U2 = svdD[:Vt][1:k, i2]'
+#   tmp = U1*Diagonal(S)
+#   ef = eigfact(Symmetric(Diagonal(S)-tmp'*((tmp*(Diagonal(S)\tmp'))\tmp)), min_eigval, Inf)
+#   A22 = NPGM.LowRankEigen(U2 * ef.vectors, ef.values)
+#   A12 = U1 * (Diagonal(S) * U2')
+#   ef = eigfact(Symmetric(U1*(Diagonal(S)*U1')), min_eigval, Inf)
+#   A11 = NPGM.LowRankEigen(ef.vectors, ef.values)
+
+#   E1 = sub(E, :, i1)
+#   E2 = sub(E, :, i2)
+#   b1 = vec( sum(E1, 1) / n )
+#   b2 = vec( sum(E2, 1) / n ) - At_mul_B(A12, A11 \ b1)
+###############
 options = ProximalOPT.ProximalOptions(;ftol=1e-4, xtol=1e-4)
 @time eNeigh = NPGM.estimate_neighborhood(X, nodeInd, nodeBasis, edgeBasis, λarr; min_eigval=1e-4)
 

@@ -1,6 +1,7 @@
 module NPGM
 
 import ProximalOPT
+using Base.LinAlg.BLAS: gemv!
 using Compat
 
 export

@@ -6,7 +6,7 @@ function prepareLowRankNeighborhoodData{T<:FloatingPoint}(
     nodeInd::Int64,
     nodeBasis::NodeBasis,
     edgeBasis::EdgeBasis;
-    min_eigval::T=1e-5
+    min_eigval::T=1e-10
     )
   K = nodeBasis.numBasis
   L = edgeBasis.numBasis
@@ -64,7 +64,7 @@ function estimate_neighborhood{T<:FloatingPoint}(
     edgeBasis::EdgeBasis,
     λarr::Vector{T};
     options::ProximalOPT.ProximalOptions=ProximalOPT.ProximalOptions(),
-    min_eigval::T=1e-5
+    min_eigval::T=1e-10
     )
   n, p = size(X)
   K = nodeBasis.numBasis

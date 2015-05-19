@@ -6,7 +6,7 @@ import NPGM.BSplineFunctions
 
 # splines version
 n = 200
-p = 100
+p = 50
 rho = 0.8
 Sigma = zeros(Float64, p, p)
 for a=1:p
@@ -27,19 +27,26 @@ end
 
 nodeBasis = NPGM.BSplineFunctions.BSplineNodeBasis(4, -4., 4., 4)
 K = nodeBasis.numBasis
-edgeBasis = NPGM.BSplineFunctions.BSplineEdgeBasis(4, (-4., -4.), (4., 4.), (2, 2))
+edgeBasis = NPGM.BSplineFunctions.BSplineEdgeBasis(3, (-4., -4.), (4., 4.), (2, 2))
 L = edgeBasis.numBasis
 
 numLambda = 50
-λarr = 10.^linspace(log10(0.01), log10(0.005), numLambda)
+λarr = 10.^linspace(log10(0.01), log10(0.001), numLambda)
 
 X = randn(n, p) * sqSigma
 nodeInd = 2
 
 #################
-#   min_eigval=1e-5
+  min_eigval=1e-10
 #   D = NPGM.getNeighborhoodD(X, nodeInd, nodeBasis, edgeBasis)
 #   E = NPGM.getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
+
+# ef = eigfact(Symmetric(D'D/n), min_eigval, Inf)
+# sv = sort(ef.values, rev=true)
+
+θ, A11, A12, A22, b1, b2, groups = NPGM.prepareLowRankNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis; min_eigval=min_eigval)
+
+A11.values
 
 #   n, p = size(X)
 #   groups = Array(UnitRange{Int64}, p-1)
@@ -79,16 +86,18 @@ nodeInd = 2
 #   b2 = vec( sum(E2, 1) / n ) - At_mul_B(A12, A11 \ b1)
 ###############
 options = ProximalOPT.ProximalOptions(;ftol=1e-4, xtol=1e-4)
-@time eNeigh = NPGM.estimate_neighborhood(X, nodeInd, nodeBasis, edgeBasis, λarr; min_eigval=1e-4)
+@time eNeigh = NPGM.estimate_neighborhood(X, nodeInd, nodeBasis, edgeBasis, λarr)
+
+eNeigh
 
 bNeighborhood = Array(Bool, p)
-θv = slice(eNeigh, 10, :)
+θv = slice(eNeigh, 18, :)
 NPGM.getNeighborhood(bNeighborhood, θv, nodeInd, p, K, L)
 
 condX = zeros(p)
 condX[2] = -2.
 x = [linspace(-4., 4., 100);]
 fx = similar(x)
-NPGM.condDensity(fx, x, vec(eNeigh[50, :]), nodeBasis, edgeBasis, 1, condX, -4., 4.)
+NPGM.condDensity(fx, x, vec(eNeigh[18, :]), nodeBasis, edgeBasis, 1, condX, -4., 4.)
 PyPlot.plot(x, fx)
 

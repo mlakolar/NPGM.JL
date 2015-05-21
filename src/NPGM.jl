@@ -58,6 +58,8 @@ include("low_rank.jl")
 
 include("graph_sample.jl")
 
+include("heatBasis.jl")
+
 
 
 end

@@ -33,6 +33,7 @@ Base.copy(A::LowRankEigen) = LowRankEigen(A.vectors, A.values, A.values_inv)
 
 #
 # *(A::LowRankEigen, B::StridedVecOrMat) = A.vectors*(Diagonal(A.values)*(A.vectors'B))
+\(A::LowRankEigen, B::StridedMatrix) = A.vectors * (Diagonal(A.values_inv) * (A.vectors' * B))
 function \(A::LowRankEigen, B::StridedVector)
   tmp1 = A.tmp1
   At_mul_B!(tmp1, A.vectors, B)

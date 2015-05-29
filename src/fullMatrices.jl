@@ -335,6 +335,67 @@ function getDD(
   sparse(I, J, V, numColumns, numColumns)
 end
 
+function getD{T<:FloatingPoint}(
+    X::StridedMatrix{T},
+    nodeInd::Int64,
+    nodeBasis::NodeBasis,
+    edgeBasis::EdgeBasis
+    )
+  n, p = size(X)
+  K = nodeBasis.numBasis
+  L = edgeBasis.numBasis
+  numColumns = int(p*K + p * (p-1) / 2 * L)
+  partial_derivatives = zeros(Float64, numColumns, 2)
+  numNZ = p*K + p * (p-1) * L
+  V = zeros(Float64, numNZ)
+  I = zeros(Int64, numNZ)
+  J = zeros(Int64, numNZ)
+
+  @assert size(out) == (n, K+(p-1)*L)
+  indNZ = 0
+  @inbounds for i=1:n
+    offsetRow = (i-1)*p
+    # obtain partial derivatives to construct DD matrix
+    _getCompactDi!(partial_derivatives, X, i, nodeBasis, edgeBasis)
+
+    # process nodes
+    for a=1:p
+      for k=1:K
+        indNZ += 1
+        _ci = (a-1)*K+k
+        I[indNZ] = offset + a
+        J[indNZ] = _ci
+        V[indNZ] = partial_derivatives[_ci, 1]
+      end
+    end
+
+    # process edges
+    indEdge = 0
+    @inbounds for a=1:p
+      for b=a+1:p
+        indEdge += 1
+        # derivative with respect to first argument
+        for l=1:L
+          indNZ += 1
+          _ci = p*K + (indEdge-1)*L + l
+          I[indNZ] = offset + a
+          J[indNZ] = _ci
+          V[indNZ] = partial_derivatives[_ci, 1]
+        end
+        # derivative with respect to second argument
+        for l=1:L
+          indNZ += 1
+          _ci = p*K + (indEdge-1)*L + l
+          I[indNZ] = offset + b
+          J[indNZ] = _ci
+          V[indNZ] = partial_derivatives[_ci, 2]
+        end
+      end
+    end
+  end
+  sparse(I, J, V, numColumns, numColumns)
+end
+
 
 ########################################
 #

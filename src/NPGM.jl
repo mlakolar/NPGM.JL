@@ -53,12 +53,14 @@ include("fullMatrices.jl")
 include("neighborhoodMatrices.jl")
 include("gaussianBasis.jl")
 include("bsplineBasis.jl")
+include("kernelBasis.jl")
+
 include("utils.jl")
 include("low_rank.jl")
 
 include("graph_sample.jl")
 
-include("heatBasis.jl")
+
 
 
 

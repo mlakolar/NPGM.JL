@@ -6,7 +6,7 @@ import ..NPGM.EdgeBasis
 
 export
   value, derivative, derivative2,
-  HeatKernel
+  GaussianKernel
 
 
 abstract MercerKernel{T}
@@ -14,6 +14,22 @@ abstract MercerKernel{T}
 value{T}(k::MercerKernel{T}, x::T, y::T) = throw(ArgumentError("value not implemented for this kernel."))
 derivative{T}(k::MercerKernel{T}, x::T, y::T, whichArgument::Int64) = throw(ArgumentError("derivative not implemented for this kernel."))
 derivative2{T}(k::MercerKernel{T}, x::T, y::T, whichArgument::Int64) = throw(ArgumentError("derivative2 not implemented for this kernel."))
+
+function KernelEdgeBasis{T<:FloatingPoint}(kernel::MercerKernel{T})
+  function val{T<:FloatingPoint}(x::T, y::T, ::Int64)
+    value(kernel, x, y)
+ end
+  function der{T<:FloatingPoint}(x::T, y::T, ::Int64, whichArgument::Int64)
+    derivative(kernel, x, y, whichArgument)
+  end
+  function der2(x, y, ::Int64, whichArgument::Int64)
+    derivative2(kernel, x, y, whichArgument)
+  end
+
+  EdgeBasis(val, der, der2, 1)
+end
+
+
 
 ## GaussianKernel
 #
@@ -23,6 +39,8 @@ immutable GaussianKernel{T} <: MercerKernel{T}
   σ::T
   GaussianKernel(a::T) = new(a)
 end
+GaussianKernel{T<:FloatingPoint}(a::T) = GaussianKernel{T}(a)
+
 value{T}(k::GaussianKernel{T}, x::T, y::T) = exp( -(x-y)^2. / k.σ^2. )
 function derivative{T}(k::GaussianKernel{T}, x::T, y::T, whichArgument::Int64)
   t = k.σ^2.
@@ -35,7 +53,7 @@ function derivative{T}(k::GaussianKernel{T}, x::T, y::T, whichArgument::Int64)
   end
 end
 
-function derivative2{T}(k::HeatKernel{T}, x::T, y::T, whichArgument::Int64)
+function derivative2{T}(k::GaussianKernel{T}, x::T, y::T, whichArgument::Int64)
   t = k.σ^2.
   if whichArgument == 1 || whichArgument == 2
     ds = (x - y)^2.

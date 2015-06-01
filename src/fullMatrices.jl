@@ -61,7 +61,7 @@ end
 # (3, 4) -> (p-1) + (p-2) + 1
 # ...
 function _getEdgeIndex(a::Int64, b::Int64, p::Int64)
-    (a-1) * p - int((a-1)*a/2) + (b-a)
+    (a-1) * p - round(Int, (a-1)*a/2) + (b-a)
 end
 # constructs matrix DD = sum_i D(x_i)'D(x_i)
 function getDD(
@@ -72,12 +72,12 @@ function getDD(
   n, p = size(X)
   K = nodeBasis.numBasis
   L = edgeBasis.numBasis
-  numColumns = int(p*K + p * (p-1) / 2 * L)
+  numColumns = round(Int, p*K + p * (p-1) / 2 * L)
   partial_derivatives = zeros(Float64, numColumns, 2)
 
   # number of non-zero elements in D'D
   numNZ = p * K * K +
-    int(L * L * p * (p-1) / 2) +
+    round(Int, L * L * p * (p-1) / 2) +
     2 * (p-1) * K * L * p +
     L * L * p * (p - 1) * (p - 2)
   V = zeros(Float64, numNZ)
@@ -337,21 +337,19 @@ end
 
 function getD{T<:FloatingPoint}(
     X::StridedMatrix{T},
-    nodeInd::Int64,
     nodeBasis::NodeBasis,
     edgeBasis::EdgeBasis
     )
   n, p = size(X)
   K = nodeBasis.numBasis
   L = edgeBasis.numBasis
-  numColumns = int(p*K + p * (p-1) / 2 * L)
+  numColumns = round(Int, p*K + p * (p-1) / 2 * L)
   partial_derivatives = zeros(Float64, numColumns, 2)
   numNZ = p*K + p * (p-1) * L
-  V = zeros(Float64, numNZ)
-  I = zeros(Int64, numNZ)
-  J = zeros(Int64, numNZ)
+  V = zeros(Float64, numNZ*n)
+  I = zeros(Int64, numNZ*n)
+  J = zeros(Int64, numNZ*n)
 
-  @assert size(out) == (n, K+(p-1)*L)
   indNZ = 0
   @inbounds for i=1:n
     offsetRow = (i-1)*p
@@ -363,7 +361,7 @@ function getD{T<:FloatingPoint}(
       for k=1:K
         indNZ += 1
         _ci = (a-1)*K+k
-        I[indNZ] = offset + a
+        I[indNZ] = offsetRow + a
         J[indNZ] = _ci
         V[indNZ] = partial_derivatives[_ci, 1]
       end
@@ -378,7 +376,7 @@ function getD{T<:FloatingPoint}(
         for l=1:L
           indNZ += 1
           _ci = p*K + (indEdge-1)*L + l
-          I[indNZ] = offset + a
+          I[indNZ] = offsetRow + a
           J[indNZ] = _ci
           V[indNZ] = partial_derivatives[_ci, 1]
         end
@@ -386,14 +384,14 @@ function getD{T<:FloatingPoint}(
         for l=1:L
           indNZ += 1
           _ci = p*K + (indEdge-1)*L + l
-          I[indNZ] = offset + b
+          I[indNZ] = offsetRow + b
           J[indNZ] = _ci
           V[indNZ] = partial_derivatives[_ci, 2]
         end
       end
     end
   end
-  sparse(I, J, V, numColumns, numColumns)
+  sparse(I, J, V, n*p, numColumns)
 end
 
 

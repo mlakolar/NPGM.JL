@@ -25,28 +25,12 @@ function prepareLowRankNeighborhoodData{T<:FloatingPoint}(
   # we find a low rank approximation to A
   i1 = 1:K
   i2 = K+1:size(D, 2)
-  svdD = svdfact(D)
-  S = svdD.S
-  m = length(S)
-  k = 0
-  @inbounds while k < m
-    k += 1
-    v = S[k].^2. / n
-    if v < min_eigval
-      k -= 1
-      break
-    end
-    S[k] = v
-  end
-  resize!(S, k)
-  U1 = svdD[:Vt][1:k, i1]'
-  U2 = svdD[:Vt][1:k, i2]'
-  tmp = U1*Diagonal(S)
-  ef = eigfact(Symmetric(Diagonal(S)-tmp'*((tmp*(Diagonal(S)\tmp'))\tmp)), min_eigval, Inf)
-  A22 = LowRankEigen(U2 * ef.vectors, ef.values)
-  A12 = U1 * (Diagonal(S) * U2')
-  ef = eigfact(Symmetric(U1*(Diagonal(S)*U1')), min_eigval, Inf)
+  A = D'D / n
+  ef = eigfact(Symmetric(A[i1, i1]), min_eigval, Inf)
   A11 = LowRankEigen(ef.vectors, ef.values)
+  A12 = A[i1, i2]
+  ef = eigfact(Symmetric(A[i2, i2] - A12' * (A11 \ A12)), min_eigval, Inf)
+  A22 = LowRankEigen(ef.vectors, ef.values)
 
   E1 = sub(E, :, i1)
   E2 = sub(E, :, i2)
@@ -56,6 +40,51 @@ function prepareLowRankNeighborhoodData{T<:FloatingPoint}(
   #
   zeros(K+(p-1)*L), A11, A12, A22, b1, b2, groups
 end
+
+function prepareLowRankNeighborhoodData1{T<:FloatingPoint}(
+    X::Matrix{T},
+    nodeInd::Int64,
+    nodeBasis::NodeBasis,
+    edgeBasis::EdgeBasis;
+    min_eigval::T=1e-10
+    )
+  K = nodeBasis.numBasis
+  L = edgeBasis.numBasis
+
+  D = getNeighborhoodD(X, nodeInd, nodeBasis, edgeBasis)
+  E = getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
+
+  n, p = size(X)
+  groups = Array(UnitRange{Int64}, p-1)
+  for t=1:p-1
+    groups[t] = (t-1)*L+1:t*L
+  end
+
+  # A = D'D / n
+  # compute A11, A12, A22
+  # we find a low rank approximation to A
+  i1 = 1:K
+  i2 = K+1:size(D, 2)
+  D1 = sub(D, :, i1)
+  D2 = sub(D, :, i2)
+  A = D'D / n
+  ef = eigfact(Symmetric(A[i1, i1]), min_eigval, Inf)
+  A11 = LowRankEigen(ef.vectors, ef.values)
+  A12 = A[i1, i2]
+#   ef = eigfact(Symmetric(A[i2, i2] - A12' * (A11 \ A12)), min_eigval, Inf)
+  svdf = svdfact(D1)
+  A22 = XtX((eye(n) - svdf[:U]*svdf[:U]')*D2)
+#   A22 = LowRankEigen(ef.vectors, ef.values)
+
+  E1 = sub(E, :, i1)
+  E2 = sub(E, :, i2)
+  b1 = vec( sum(E1, 1) / n )
+  b2 = vec( sum(E2, 1) / n ) - At_mul_B(A12, A11 \ b1)
+
+  #
+  zeros(K+(p-1)*L), A11, A12, A22, b1, b2, groups
+end
+
 
 function estimate_neighborhood{T<:FloatingPoint}(
     X::Matrix{T},
@@ -71,8 +100,8 @@ function estimate_neighborhood{T<:FloatingPoint}(
   L = edgeBasis.numBasis
 
   numLambda = length(λarr)
-  θ, A11, A12, A22, b1, b2, groups = prepareLowRankNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis; min_eigval=min_eigval)
   #
+  θ, A11, A12, A22, b1, b2, groups = prepareLowRankNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis; min_eigval=min_eigval)
   θ1 = sub(θ, 1:K)
   θ2 = sub(θ, K+1:length(θ))
   #
@@ -90,6 +119,7 @@ function estimate_neighborhood{T<:FloatingPoint}(
   end
  θarr
 end
+
 
 function getNeighborhood{T<:FloatingPoint}(
     out::Vector{Bool},

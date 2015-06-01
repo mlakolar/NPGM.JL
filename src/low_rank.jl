@@ -33,6 +33,7 @@ Base.copy(A::LowRankEigen) = LowRankEigen(A.vectors, A.values, A.values_inv)
 
 #
 # *(A::LowRankEigen, B::StridedVecOrMat) = A.vectors*(Diagonal(A.values)*(A.vectors'B))
+\(A::LowRankEigen, B::StridedMatrix) = A.vectors * (Diagonal(A.values_inv) * (A.vectors' * B))
 function \(A::LowRankEigen, B::StridedVector)
   tmp1 = A.tmp1
   At_mul_B!(tmp1, A.vectors, B)
@@ -61,3 +62,26 @@ function Base.A_mul_B!{T<:FloatingPoint}(out::StridedVector{T}, A::LowRankEigen{
   end
   A_mul_B!(out, A.vectors, tmp1)
 end
+
+
+immutable XtX{T<:FloatingPoint,S<:StridedMatrix} <: AbstractMatrix{T}
+  X::S
+  #
+  tmp1::Vector{T}        # used for multiplication without allocation
+
+  XtX(X::StridedMatrix{T}) = new(X, zeros(T, size(X, 1)))
+end
+
+XtX{T}(X::AbstractMatrix{T}) = XtX{T,typeof(X)}(X)
+
+function Base.A_mul_B!{T<:FloatingPoint}(out::StridedVector{T}, A::XtX{T}, B::StridedVector{T})
+  tmp1 = A.tmp1
+  A_mul_B!(tmp1, A.X, B)
+  At_mul_B!(out, A.X, tmp1)
+end
+
+function Base.size(A::XtX)
+  m = size(A.X, 2)
+  (m, m)
+end
+Base.full(A::XtX) = A.X'*A.X

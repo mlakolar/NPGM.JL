@@ -24,9 +24,9 @@ for r=1:p
   end
 end
 
-nodeBasis = NPGM.GaussianFunctions.GaussianNodeBasis(0.)
+nodeBasis = NPGM.GaussianFunctions.GaussianNodeBasis()
 K = nodeBasis.numBasis
-edgeBasis = NPGM.GaussianFunctions.GaussianEdgeBasis(0.)
+edgeBasis = NPGM.GaussianFunctions.GaussianEdgeBasis()
 L = edgeBasis.numBasis
 
 numLambda = 30

@@ -9,7 +9,8 @@ export
   NodeBasis, EdgeBasis,
 
   # full matrices
-  getDD, getE,
+  getDD,  # constructs matrix DD = sum_i D(x_i)'D(x_i)
+  getE,   # returns vector E = sum_i E(x_i)
 
   # neigborhood matrices
   getNeighborhoodD,getNeighborhoodD!,
@@ -22,10 +23,12 @@ export
   getNeighborhood,
   precision, recall,
   LowRankEigen,
+  RandomData,
 
   # sampler
-  graph_sample!
-
+  graph_sample!,
+  createBSplineNodeBasis,
+  createBSplineEdgeBasis
 
 # this object represents basis used to compute f_a(x_a)
 # function val -- val(x, k) where k=1..K
@@ -51,17 +54,16 @@ end
 
 include("fullMatrices.jl")
 include("neighborhoodMatrices.jl")
-include("gaussianBasis.jl")
+#include("gaussianBasis.jl")
 include("bsplineBasis.jl")
-include("kernelBasis.jl")
+#include("kernelBasis.jl")
+include("rkhsBasis.jl")
 
 include("utils.jl")
 include("low_rank.jl")
 
 include("graph_sample.jl")
-
-
-
+include("basisFunctionWrapper.jl")
 
 
 end

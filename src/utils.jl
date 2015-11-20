@@ -4,15 +4,16 @@
 function prepareLowRankNeighborhoodData{T<:FloatingPoint}(
     X::Matrix{T},
     nodeInd::Int64,
-    nodeBasis::NodeBasis,
-    edgeBasis::EdgeBasis;
+    createNodeBasis::Function,
+    createEdgeBasis::Function;
     min_eigval::T=1e-10
     )
-  K = nodeBasis.numBasis
-  L = edgeBasis.numBasis
+  tmp_nodeBasis = createNodeBasis(1); tmp_edgeBasis = createEdgeBasis(1,2)
+  K = tmp_nodeBasis.numBasis
+  L = tmp_edgeBasis.numBasis
 
-  D = getNeighborhoodD(X, nodeInd, nodeBasis, edgeBasis)
-  E = getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
+  D = getNeighborhoodD(X, nodeInd, createNodeBasis, createEdgeBasis)
+  E = getNeighborhoodE(X, nodeInd, createNodeBasis, createEdgeBasis)
 
   n, p = size(X)
   groups = Array(UnitRange{Int64}, p-1)
@@ -44,15 +45,17 @@ end
 function prepareLowRankNeighborhoodData1{T<:FloatingPoint}(
     X::Matrix{T},
     nodeInd::Int64,
-    nodeBasis::NodeBasis,
-    edgeBasis::EdgeBasis;
+    createNodeBasis::Function,
+    createEdgeBasis::Function;
     min_eigval::T=1e-10
     )
-  K = nodeBasis.numBasis
-  L = edgeBasis.numBasis
+  
+  tmp_nodeBasis = createNodeBasis(1); tmp_edgeBasis = createEdgebasis(1,2)
+  K = tmp_nodeBasis.numBasis
+  L = tmp_edgeBasis.numBasis
 
-  D = getNeighborhoodD(X, nodeInd, nodeBasis, edgeBasis)
-  E = getNeighborhoodE(X, nodeInd, nodeBasis, edgeBasis)
+  D = getNeighborhoodD(X, nodeInd, createNodeBasis, createEdgeBasis)
+  E = getNeighborhoodE(X, nodeInd, createNodeBasis, createEdgeBasis)
 
   n, p = size(X)
   groups = Array(UnitRange{Int64}, p-1)
@@ -89,19 +92,20 @@ end
 function estimate_neighborhood{T<:FloatingPoint}(
     X::Matrix{T},
     nodeInd::Int64,
-    nodeBasis::NodeBasis,
-    edgeBasis::EdgeBasis,
-    λarr::Vector{T};
+    createNodeBasis::Function,
+    createEdgeBasis::Function,
+    λarr;#::Vector{T};
     options::ProximalOPT.ProximalOptions=ProximalOPT.ProximalOptions(),
     min_eigval::T=1e-10
     )
   n, p = size(X)
-  K = nodeBasis.numBasis
-  L = edgeBasis.numBasis
+  tmp_nodeBasis = createNodeBasis(1); tmp_edgeBasis = createEdgeBasis(1,2)
+  K = tmp_nodeBasis.numBasis
+  L = tmp_edgeBasis.numBasis
 
   numLambda = length(λarr)
   #
-  θ, A11, A12, A22, b1, b2, groups = prepareLowRankNeighborhoodData(X, nodeInd, nodeBasis, edgeBasis; min_eigval=min_eigval)
+  θ, A11, A12, A22, b1, b2, groups = prepareLowRankNeighborhoodData(X, nodeInd, createNodeBasis, createEdgeBasis; min_eigval=min_eigval)
   θ1 = sub(θ, 1:K)
   θ2 = sub(θ, K+1:length(θ))
   #
@@ -236,3 +240,51 @@ function recall(tGraph::Matrix{Bool}, eGraph::Matrix{Bool}; symmetrize=0)
   numTrue > 0 ? convert(Float64, numEstimAndTrue / numTrue) : 1.
 end
 
+function RandomData(n, p)
+	prob = 0.3; rand_prob = rand(p, p); rand_prob= rand_prob/2 + rand_prob'/2
+	for i = 1:p
+		rand_prob[i,i] = 1
+	end
+	tGraph = Array(Bool, p, p)
+	for i = 1:p
+		for j=1:p
+			if rand_prob[i,j] <= prob && i!=j
+				tGraph[i,j] = true
+			else
+				tGraph[i,j] = false
+			end
+		end
+	end
+	deg = sum(tGraph, 1)
+	for i =1:length(deg)
+		if deg[i] == 0
+			tGraph[i,i+1] = tGraph[i+1,i] = true
+		end
+	end
+
+	Theta = zeros(Float64, p, p)
+	off_val = 0.3
+	for i = 1:p
+		for j=(i+1):p
+			if tGraph[i,j]
+				Theta[i,j] = Theta[j,i] = off_val
+			end
+		end
+	end
+
+	eigen_val = eig(Theta)[1]; min_eigen = 1000
+	for i =1:p
+		if min_eigen > eigen_val[i]
+			min_eigen = eigen_val[i]
+		end
+	end
+
+	for i = 1:p
+		Theta[i,i] += abs(min_eigen)+ 0.2
+	end
+
+	Sigma = inv(Theta)
+	sqSigma = real( sqrtm(Sigma) )
+	X = randn(n, p) * sqSigma
+	X, tGraph, Theta, Sigma
+end
